@@ -12,11 +12,22 @@ When the size of the in-memory of memtable exceeds a certain threshold, (typical
 
 ## SSTables
 - String Sorted Tables
+- Sequence of key-value pairs is sorted by key
+- New pairs are appended to the end of the file
+- Each key only appears once in the file (since the merge process excludes duplicates, keeping the recent one).
 
-## Resume
+### Merging segments
+- Similar to merge sort. Read the input files side by side, look at the first key in each file, copy the lowest key (according to the sort order) to the output file, and repeat.
+
+### Searching
+- The multiple pairs are stored ordered. In a search you will need to iterate through the pairs until you find the one that englobes your key. Recover that segment and search for the value inside. If the key is not inside, is because it was not created.
+- Requires a in memory index to sign the byte offset of the segments
+- The pairs inside the offset can be grouped into a block and compress it before writing it to disk
+
+### Resume
 #### Insertion
-- When a write comes in, add it to an in-memory balanced tree data structure (for example, a red-black tree). This in-memory tree is sometimes called a memtable.
-- When the memtable gets bigger than some threshold—typically a few megabytes — write it out to disk as an SSTable file. This can be done efficiently because the tree already maintains the key-value pairs sorted by key. The new SSTable file becomes the most recent segment of the database. While the SSTable is being written out to disk, writes can continue to a new memtable instance.
+- When a write comes in, add it to an in-memory balanced tree data structure. This in-memory tree is sometimes called a memtable.
+- When the memtable gets bigger than some threshold write it out to disk as an SSTable file. This can be done efficiently because the tree already maintains the key-value pairs sorted by key. The new SSTable file becomes the most recent segment of the database. While the SSTable is being written out to disk, writes can continue to a new memtable instance.
 - In order to serve a read request, first try to find the key in the memtable, then in the most recent on-disk segment, then in the next-older segment, etc.
 - From time to time, run a merging and compaction process in the background to combine segment files and to discard overwritten or deleted values.
 
@@ -28,7 +39,6 @@ When the size of the in-memory of memtable exceeds a certain threshold, (typical
 - Remember: Memory devices are byte-addressable and Storage devices are block addressable
 - LSM-trees sort merges similarly sized runs (run is a sorted array of data) organizing them into levels of exponentially increasing capacities
 - To get a value from a storage device one can:
-    - Do a binary search through all levels (that's not good)
     - Map pointers to indexes in main memory to make it easy to search (contains mim-max key in each block for every run). Binary search is only performed in memory and then one I/O operation to the storage device
     - Modern systems have bloom filters that point to memory indexes (one for each run)
 - Merging
@@ -50,3 +60,4 @@ When the size of the in-memory of memtable exceeds a certain threshold, (typical
 - https://github.com/dhanus/lsm-tree/blob/master/lsm.c
 - https://github.com/dhanus/lsm-tree/blob/master/lsm.h
 - http://source.wiredtiger.com/2.3.1/lsm.html
+- https://www.youtube.com/watch?v=b6SI8VbcT4w
