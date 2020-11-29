@@ -10,28 +10,30 @@
 
 When the size of the in-memory of memtable exceeds a certain threshold, (typically a few megabytes), it’s flushed to disk as a new segment as SSTable sorted by key.
 
-## SSTables
+-------
+
+# SSTables
 - String Sorted Tables
 - Sequence of key-value pairs is sorted by key
 - New pairs are appended to the end of the file
 - Each key only appears once in the file (since the merge process excludes duplicates, keeping the recent one).
 
-### Merging segments
+## Merging segments
 - Similar to merge sort. Read the input files side by side, look at the first key in each file, copy the lowest key (according to the sort order) to the output file, and repeat.
 
-### Searching
+## Searching
 - The multiple pairs are stored ordered. In a search you will need to iterate through the pairs until you find the one that englobes your key. Recover that segment and search for the value inside. If the key is not inside, is because it was not created.
 - Requires a in memory index to sign the byte offset of the segments
 - The pairs inside the offset can be grouped into a block and compress it before writing it to disk
 
-### Resume
-#### Insertion
+## Resume
+### Insertion
 - When a write comes in, add it to an in-memory balanced tree data structure. This in-memory tree is sometimes called a memtable.
 - When the memtable gets bigger than some threshold write it out to disk as an SSTable file. This can be done efficiently because the tree already maintains the key-value pairs sorted by key. The new SSTable file becomes the most recent segment of the database. While the SSTable is being written out to disk, writes can continue to a new memtable instance.
 - In order to serve a read request, first try to find the key in the memtable, then in the most recent on-disk segment, then in the next-older segment, etc.
 - From time to time, run a merging and compaction process in the background to combine segment files and to discard overwritten or deleted values.
 
-#### Read
+### Read
 - A given key is first looked up in the memtable.
 - Then using a hash index it’s searched in one or more segments depending upon the status of the compaction.
 
