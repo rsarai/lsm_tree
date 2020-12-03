@@ -68,39 +68,47 @@ class SSTable:
 
         return val
 
-    def compact(self, sorted_memtable):
+    @classmethod
+    def compact(cls, sorted_memtable):
         result = {}
         for k, v in sorted_memtable:
             result[k] = v
         return result
 
     def merge_files(self):
-        total_files = len(os.listdir(location))
+        total_files = len(os.listdir(self.location))
         files_and_contents = {}
-        for i in range(total_files + 1):
+        for i in range(1, total_files + 1):
             ss_table_file = f"{self.location}/sstable_{i}.txt"
             with open(ss_table_file, "r") as f:
                 key = f"sstable_{i}"
                 content = f.read().split("\n")
                 files_and_contents[key] = content
 
-        # need to start from the beginning to the ending
-        # 1, 2, 3, 4, 5
-        # [1, 2] - 1, [1, 3] - 1, [1, 4] - 1, [1, 5] - 1
-        while len(os.listdir(location)) > 1:
-            newer_file_name = "sstable_" + str(len(os.listdir(location)))
-            older_file_name = "sstable_" + str(newer_file - 1)
+        newer_file_count = 1
+        while len(os.listdir(self.location)) > 1:
+            ss_table_file = f"{self.location}/sstable_1.txt"
+            with open(ss_table_file, "r") as f:
+                content = f.read().split("\n")
+                files_and_contents["sstable_1"] = content
+
+            newer_file_name = "sstable_" + str(newer_file_count + 1)
+            older_file_name = "sstable_1"
             print(f"Merging {older_file_name} with {newer_file_name}")
 
-            new_file_content = _merge_two_files(
+            new_file_content = self._merge_two_files(
                 files_and_contents[older_file_name],
                 files_and_contents[newer_file_name]
             )
-
             os.remove(f"{self.location}/{older_file_name}.txt")
             os.remove(f"{self.location}/{newer_file_name}.txt")
-            del self.sparse_index[newer_file_name]
-            del self.sparse_index[older_file_name]
+
+            d = {}
+            for key, val in self.sparse_index.items():
+                if val == newer_file_name or val == older_file_name:
+                    continue
+                d[key] = val
+            self.sparse_index = d
 
             new_file_name = older_file_name
             print(f"Creating merged SSTable file named {new_file_name}")
@@ -113,6 +121,7 @@ class SSTable:
                         i += 1
 
             self.sparse_index[first_key] = new_file_name
+            newer_file_count += 1
 
     def _merge_two_files(self, older_file_content, newer_file_content):
         older_file_content = list(filter(None, older_file_content))
@@ -168,21 +177,3 @@ class SSTable:
                 index_files_lines[key_index] += 1
 
         return new_file_content
-
-
-if __name__ == "__main__":
-    files_and_contents = {}
-    location="tests/files"
-    total_files = len(os.listdir(location))
-
-    for i in range(1, total_files + 1):
-        ss_table_file = f"{location}/sstable_{i}.txt"
-        with open(ss_table_file, "r") as f:
-            key = f"sstable_{i}"
-            content = f.read().split("\n")
-            files_and_contents[key] = content
-
-    older_file_content = files_and_contents["sstable_1"]
-    newer_file_content = files_and_contents["sstable_2"]
-    result = _merge_two_files(older_file_content, newer_file_content)
-    print(result)
