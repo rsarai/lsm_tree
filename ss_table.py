@@ -36,7 +36,7 @@ class SSTable:
         ss_table_name = f"sstable_{total_files + 1}"
         first_key = None
 
-        print("Creating SSTable file named {}")
+        print(f"Creating SSTable file named {ss_table_name}")
         with open(f"{self.location}/{ss_table_name}.txt", "w") as f:
             i = 0
             for k, val in sorted_memtable:
@@ -135,7 +135,7 @@ class SSTable:
                 line_index_1 = index_files_lines["older"]
                 if line_index_1 != None:
                     content = older_file_content[line_index_1]
-                    key_1, val_1 = content.split(" ", 1)
+                    key_1, val_1 = content.rsplit(" ", 1)
                     keys[key_1] = val_1
             except IndexError:
                 index_files_lines["older"] = None
@@ -146,7 +146,7 @@ class SSTable:
                 line_index_2 = index_files_lines["newer"]
                 if line_index_2 != None:
                     content = newer_file_content[line_index_2]
-                    key_2, val_2 = content.split(" ", 1)
+                    key_2, val_2 = content.rsplit(" ", 1)
                     keys[key_2] = val_2
             except IndexError:
                 index_files_lines["newer"] = None
