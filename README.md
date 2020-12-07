@@ -38,7 +38,8 @@ When the size of the in-memory of memtable exceeds a certain threshold, (typical
 - Then using a hash index it’s searched in one or more segments depending upon the status of the compaction.
 
 # TODO
-- [ ] Don't merge files into single file. Do merge sort to merge its content and leave the files ordered.
+- [x] Don't merge files into single file. Do merge sort to merge its content and leave the files ordered.
+- [ ] Test merging files with updates on key, check if the most recent is kept.
 
 # Notes
 - Remember: Memory devices are byte-addressable and Storage devices are block addressable
