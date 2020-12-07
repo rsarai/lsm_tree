@@ -37,6 +37,9 @@ When the size of the in-memory of memtable exceeds a certain threshold, (typical
 - A given key is first looked up in the memtable.
 - Then using a hash index it’s searched in one or more segments depending upon the status of the compaction.
 
+# TODO
+- [ ] Don't merge files into single file. Do merge sort to merge its content and leave the files ordered.
+
 # Notes
 - Remember: Memory devices are byte-addressable and Storage devices are block addressable
 - LSM-trees sort merges similarly sized runs (run is a sorted array of data) organizing them into levels of exponentially increasing capacities

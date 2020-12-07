@@ -1,8 +1,0 @@
-amanhã 1000
-aqui 0
-dan 2
-hoy 28
-manual 9
-more 89
-sol 0
-zorro 0

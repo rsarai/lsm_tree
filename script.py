@@ -104,12 +104,16 @@ def count_vowels(mystr):
 
 from ss_table import SSTable
 
-location = '/home/sarai/github-projects/lsm-trees/files/big_test/'
+location = '/home/sarai/github-projects/lsm-trees/files/big_test'
 sstable = SSTable(location=location, capacity_threshold=150)
-for book in list_of_books:
-    sstable.add(book, count_vowels(book))
-sstable.merge_files()
+# for book in list_of_books:
+#     sstable.add(book, count_vowels(book))
+# sstable.merge_files()
+
+assert sstable.read("The War of the Worlds by H. G. Wells (226)"), 6
+assert sstable.read("Jane Eyre: An Autobiography by Charlotte Brontë (394)"), 15
+assert sstable.read("Major Barbara by Bernard Shaw (156)"), 8
 
 # should create 11 files
-# merge all into 1 with 99 books
+# all files should have 9 items
 # last inserted book "Major Barbara by Bernard Shaw (156)" should be in the memtable
