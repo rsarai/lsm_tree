@@ -87,6 +87,8 @@ new set of sorted files non-overlapping in key range, called a run
     - Leveling (read optimized): Merge happens when a new run arrives and if the size exceeds the expected is flushed to the next level.
 
 # References
+- https://www.cs.umb.edu/~poneil/lsmtree.pdf
+- https://stratos.seas.harvard.edu/files/stratos/files/dostoevskykv.pdf
 - https://priyankvex.wordpress.com/2019/04/28/introduction-to-lsm-trees-may-the-logs-be-with-you/
 - Designing Data-Intensive Applications
 - https://www.cs.umb.edu/~poneil/lsmtree.pdf
