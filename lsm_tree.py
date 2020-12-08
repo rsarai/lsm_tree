@@ -13,7 +13,11 @@ file with contents sorted on key order.
 Simple proof of concept implementation, real implementation will be done in C
 """
 import os
+import sys
 import collections
+from datetime import datetime
+
+from ss_table import SSTable
 
 
 TOMBSTONE_OPERATOR = "/!/"
@@ -38,21 +42,51 @@ class BufferL0:
         self.buffer_L0 = []         # TODO make this a AVL tree
 
     def insert(self, key, value):
-        if len(self.buffer_L0) == self.buffer_capacity:
-            return
-
-        self.buffer_L0.append({key: value})
-        self.buffer_L0 = sorted(self.buffer_L0, key=lambda k: list(k.keys())[0])
-        return value
+        self.buffer_L0.append((key, value))
 
     def get(self, key):
-        for item in reversed(self.buffer_L0):
-            if list(item.keys())[0] == key:
-                return item[key]
+        for bf_key, val in reversed(self.buffer_L0):
+            if bf_key == key:
+                return val
         return TOMBSTONE_OPERATOR
 
     def clear(self):
         self.buffer_L0 = []
+
+    def is_over_capacity(self):
+        return sys.getsizeof(self.memtable) > self.buffer_capacity
+
+    def compact(self):
+        deleted_keys = []
+        result = {}
+        for k, v in self.buffer_L0:
+            result[k] = v
+            if v == TOMBSTONE_OPERATOR:
+                deleted_keys.append(k)
+
+        for d_key in deleted_keys:
+            del result[d_key]
+
+        return result
+
+class DiskLevel(SSTable):
+
+    def __init__(self, data, capacity, location):
+        self.location = location
+        self.level_capacity = 256 * 2^capacity
+        self.capacity_threshold = 256
+
+        self.write_to_disk(data)
+
+    def write_to_disk(self, data):
+        now = datetime.now()
+        time = now.strftime("%m-%d-%Y%H-%M-%S")
+        ss_table_name = f"sstable_{time}"
+
+        print(f"Creating SSTable file named {ss_table_name}")
+        with open(f"{self.location}/{ss_table_name}.txt", "w") as f:
+            for k, val in data:
+                f.write(f"{k} {val}\n")
 
 
 class LSM_tree:
@@ -63,12 +97,16 @@ class LSM_tree:
         self.disk_levels = []
 
     def insert(self, key, value):
-        result = self.buffer_L0.insert(key, value)
-        if result:
-            return
-        self.write_buffer_to_disk()
-        self.clear_buffer()
-        self.insert(key, value)
+        if self.buffer_L0.is_over_capacity():
+            result = self.buffer_L0.compact()
+
+            capacity = len(self.disk_levels) + 1 if len(self.disk_levels) > 0 else 1
+            new_level = DiskLevel(result, capacity, default_path)
+            self.disk_levels.append(new_level)
+
+            self.buffer_L0.clear()
+
+        self.buffer_L0.insert(key, value)
 
     def update(self, key, value):
         self.insert(key, value)
@@ -78,20 +116,6 @@ class LSM_tree:
 
     def get(self, key):
         return self.buffer_L0.get(key)
-
-    def write_buffer_to_disk(self):
-        with open('disk',"w+") as f:
-            # read data on disk into memory
-            # content = f.read()
-            # merge the sorted buffer and the sorted disk contents
-            # self.merging()
-            pass
-
-    def merging(self):
-        """
-            Takes as input a set of sorted files and creates as output a
-            new set of sorted files non-overlapping in key range
-        """
 
     def clear_buffer(self):
         self.buffer_L0.clear()

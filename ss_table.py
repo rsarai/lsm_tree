@@ -3,6 +3,8 @@ import sys
 import collections
 from math import ceil
 
+from lsm_tree import TOMBSTONE_OPERATOR
+
 class SSTable:
 
     def __init__(self, capacity_threshold, location):
@@ -12,9 +14,13 @@ class SSTable:
         self.capacity_threshold = capacity_threshold
         self.location = location
         self.sparse_index = {}
+        self.merge_threshold
 
         assert self.location
         assert self.capacity_threshold
+
+    def clear(self):
+        self.memtable = []
 
     def add(self, key, value):
         self.memtable.append((key, value))
@@ -53,7 +59,7 @@ class SSTable:
 
         val = None
         for x, y in self.memtable:
-            if key == y:
+            if key == x:
                 val = y
 
         if val is not None:
@@ -75,9 +81,15 @@ class SSTable:
 
     @classmethod
     def compact(cls, sorted_memtable):
+        deleted_keys = []
         result = {}
         for k, v in sorted_memtable:
             result[k] = v
+            if v == TOMBSTONE_OPERATOR:
+                deleted_keys.append(k)
+
+        for d_key in deleted_keys:
+            del result[d_key]
         return result
 
     def merge_files(self):

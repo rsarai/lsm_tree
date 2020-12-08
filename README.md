@@ -5,15 +5,49 @@
 - The basic idea of LSM-tree is to keep a cascade of SSTables that are merged in the background.
 
 ## Components
-- memtable -> AVL tree and stores key-values pairs sorted by key
+- memtable -> AVL tree and stores key-values pairs sorted by key (called buffer or L0)
 - segments -> very large file stored in disk comprises of many immutable log segments accompanied by indexes like hash indexes for quick key look ups. Implemented using SSTables
 
-When the size of the in-memory of memtable exceeds a certain threshold, (typically a few megabytes), it’s flushed to disk as a new segment as SSTable sorted by key.
+## Levels
+- Capacity threshold
+- Merge threshold for maximum number of runs allowed at that level, defines the merge policy (leveling or tiering)
+
+## Parameters
+- Number of levels
+- Size ratio between levels
+- Merging strategy
+
+## Requirements
+- High update rate (100k - 1M updates per second for flash storage and 1k- 10k of updates per second for HDD storage)
+- Efficient reads (1K - 5K reads per second for flash storage and 20-100 reads per second for HDD storage
+- Every level can follow either of the following merge policies - leveling, tiering, or lazy leveling.
+- Each level includes bloom filter(s) with optimized bits per entry to determine if a key is not contained in the level.
+- Each level includes fence pointers to allow page or block access within a run
+
+## Writes
+- Updates and inserts are treated in the same way
+- Deletes are also performed in the same way as updates (first added to buffer), but with a special marker, which denotes this record as "deleted".
+
+## Merging
+- The merge process takes as input a set of sorted files and creates as output a
+new set of sorted files non-overlapping in key range, called a run
+- The current level has reached its threshold size, therefore its contents needs to be pushed to larger levels as part of the merge process to clear more space at the current level.
+- A new run is being moved into the current level which has already reached its allowed threshold of runs, and therefore any run being merged into the current level cannot simply be added, rather it must be merged with a run that is already at the current level in order to abide under the threshold. In this fashion, it is possible for a merge to cause a cascade of further merges through the larger levels that follow.
+- When data are sort-merged, deletes and updates are performed, keeping only the newest values when there are entries that modify the same key.
+
+## Reads
+- Reads happen first at L0 and are propagate to the levels
+- To avoid doing a binary search on every single run during query answering, various optimizations can be performed by maintaining auxiliary structures. Common ones are: fence pointers and Bloom filters.
+
+## Consistency and Level Management.
+- While files have correspondence with the underlying file system, levels are conceptual and must be managed by the LSM-tree implementation. To maintain a consistent view of the immutable files, it is typical to maintain globally a catalog and manifest structure (in-memory and persisted) which describes the file to level relationships and indicate which set of files form a current snapshot.
+- That way, background merges that create new files can continue progress while ongoing readers are guaranteed to see a consistent view of the set of files corresponding to a single snapshot of the LSM-tree without disruption to query correctness.
 
 -------
 
 # SSTables
 - String Sorted Tables
+- Saved on disk
 - Sequence of key-value pairs is sorted by key
 - New pairs are appended to the end of the file
 - Each key only appears once in the file (since the merge process excludes duplicates, keeping the recent one).
@@ -39,7 +73,7 @@ When the size of the in-memory of memtable exceeds a certain threshold, (typical
 
 # TODO
 - [x] Don't merge files into single file. Do merge sort to merge its content and leave the files ordered.
-- [ ] Test merging files with updates on key, check if the most recent is kept.
+- [x] Test merging files with updates on key, check if the most recent is kept.
 
 # Notes
 - Remember: Memory devices are byte-addressable and Storage devices are block addressable

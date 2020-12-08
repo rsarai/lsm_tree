@@ -102,13 +102,20 @@ list_of_books = ["A Christmas Carol in Prose; Being a Ghost Story of Christmas b
 def count_vowels(mystr):
     return sum(list(map(mystr.lower().count, "aeiou")))
 
+def count_as(mystr):
+    return sum(list(map(mystr.lower().count, "a")))
+
+
 from ss_table import SSTable
 
 location = '/home/sarai/github-projects/lsm-trees/files/big_test'
 sstable = SSTable(location=location, capacity_threshold=150)
-# for book in list_of_books:
-#     sstable.add(book, count_vowels(book))
-# sstable.merge_files()
+sstable.add(list_of_books[52], 666)
+
+for book in list_of_books:
+    sstable.add(book, count_vowels(book))
+
+sstable.merge_files()
 
 assert sstable.read("The War of the Worlds by H. G. Wells (226)"), 6
 assert sstable.read("Jane Eyre: An Autobiography by Charlotte Brontë (394)"), 15
