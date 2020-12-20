@@ -60,6 +60,10 @@ class BufferL0:
         deleted_keys = []
         result = {}
         for k, v in self.buffer_L0:
+            if k in deleted_keys:
+                # if key was deleted but a new insertion happened
+                # keep recent value
+                deleted_keys.remove(k)
             result[k] = v
             if v == TOMBSTONE_OPERATOR:
                 deleted_keys.append(k)
@@ -71,42 +75,88 @@ class BufferL0:
 
 class DiskLevel(SSTable):
 
-    def __init__(self, data, capacity, location):
+    def __init__(self, size_ratio, location, merge_threshold):
+        self.name = f"level_L_{size_ratio}"
         self.location = location
-        self.level_capacity = 256 * 2^capacity
         self.capacity_threshold = 256
+        self.size_ratio = size_ratio
+        self.level_capacity = self.capacity_threshold * 2^size_ratio
+        self.runs = []
+        self.merge_threshold = merge_threshold
+        self.sparse_index = {}
 
-        self.write_to_disk(data)
+    def is_over_capacity(self):
+        return sum([os.path.getsize(r) for r in self.runs]) > self.level_capacity
 
     def write_to_disk(self, data):
         now = datetime.now()
         time = now.strftime("%m-%d-%Y%H-%M-%S")
-        ss_table_name = f"sstable_{time}"
+        ss_table_name = f"sstable_{self.name}_clock_{time}"
 
         print(f"Creating SSTable file named {ss_table_name}")
         with open(f"{self.location}/{ss_table_name}.txt", "w") as f:
             for k, val in data:
                 f.write(f"{k} {val}\n")
 
+        self.runs.append(ss_table_name)
+
+        if len(self.runs) >= 2:
+            self.merge_files(filter_str=self.name)
+
+        return ss_table_name
+
 
 class LSM_tree:
-    def __init__(self, name, buffer_capacity, merge_threshold, default_path="/home/sarai/github-projects/lsm-trees/files/"):
+    def __init__(self, name, buffer_capacity, merge_threshold, max_levels=5,
+                 default_path="/home/sarai/github-projects/lsm-trees/files/"):
         self.name = name
         self.default_path = default_path
         self.buffer_L0 = BufferL0(buffer_capacity)
-        self.disk_levels = []
+        self.disk_levels = [
+            DiskLevel(size_ratio + 1, default_path) for size_ratio in range(max_levels)
+        ]
+        self.max_levels = max_levels
+
+    def merge_levels(smaller_level, bigger_level):
+        content = []
+        for filename in smaller_level.runs:
+            content += self.get_file_content(filename)
+
+        compact_content = self.compact(content)
+        sorted_content = [(k, compact_content[k]) for k in sorted(compact_content)]
+        bigger_level.write_to_disk(sorted_content)
+
+        for filename in smaller_level.runs:
+            os.remove(f"{self.default_path}/{filename}")
+        smaller_level.runs = []
 
     def insert(self, key, value):
-        if self.buffer_L0.is_over_capacity():
-            result = self.buffer_L0.compact()
+        if not self.buffer_L0.is_over_capacity():
+            self.buffer_L0.insert(key, value)
+            return
 
-            capacity = len(self.disk_levels) + 1 if len(self.disk_levels) > 0 else 1
-            new_level = DiskLevel(result, capacity, default_path)
-            self.disk_levels.append(new_level)
+        result = self.buffer_L0.compact()
+        i = 0
+        merge_list = []
+        while True:
+            disk_level = self.disk_levels[i]
+            if not disk_level.is_over_capacity():
+                break
 
-            self.buffer_L0.clear()
+            merge_list.append(i)
+            i += 1
 
-        self.buffer_L0.insert(key, value)
+        disk_level.write_to_disk(result)
+        if merge_list:
+            for i in merge_list[::-1]:
+                if i == self.max_levels - 1:
+                    # Max level is not merged
+                    continue
+
+                merge_levels(self.disk_levels[i], self.disk_levels[i + 1])
+
+        # TODO get indexes for search
+        self.buffer_L0.clear()
 
     def update(self, key, value):
         self.insert(key, value)

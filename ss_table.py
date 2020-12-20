@@ -92,8 +92,11 @@ class SSTable:
             del result[d_key]
         return result
 
-    def merge_files(self):
-        list_of_files = os.listdir(self.location)
+    def merge_files(self, filter_str=None):
+        if filter_str:
+            list_of_files = [filter_str in f for f in os.listdir(self.location)]
+        else:
+            list_of_files = os.listdir(self.location)
         self.merge_sort_files(list_of_files)
         self.update_sparse_indexes()
 
