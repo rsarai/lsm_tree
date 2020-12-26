@@ -3,8 +3,6 @@ import sys
 import collections
 from math import ceil
 
-from lsm_tree import TOMBSTONE_OPERATOR
-
 class SSTable:
 
     def __init__(self, capacity_threshold, location):
@@ -81,6 +79,7 @@ class SSTable:
 
     @classmethod
     def compact(cls, sorted_memtable):
+        from lsm_tree import TOMBSTONE_OPERATOR
         deleted_keys = []
         result = {}
         for k, v in sorted_memtable:
@@ -94,7 +93,7 @@ class SSTable:
 
     def merge_files(self, filter_str=None):
         if filter_str:
-            list_of_files = [filter_str in f for f in os.listdir(self.location)]
+            list_of_files = [f for f in os.listdir(self.location) if filter_str in f]
         else:
             list_of_files = os.listdir(self.location)
         self.merge_sort_files(list_of_files)
@@ -165,7 +164,7 @@ class SSTable:
 
     def merge_sort_files(self, list_of_files):
         if list_of_files == []:
-            return
+            return []
         if len(list_of_files) == 1:
             return list_of_files[0]
 
@@ -215,11 +214,11 @@ class SSTable:
             newer_content = list(filter(None, self.get_file_content(newer_file_name)))
             all_files.append(newer_file_name)
 
-        print(f"Len older_content {len(older_content)}")
-        print(f"Len newer_content {len(newer_content)}")
+        # print(f"Len older_content {len(older_content)}")
+        # print(f"Len newer_content {len(newer_content)}")
         print(f"Merging {older_file_name} and {newer_file_name}")
         sorted_content = self._merge_two_files(older_content, newer_content)
-        print(f"Len sorted files {len(sorted_content)}")
+        # print(f"Len sorted files {len(sorted_content)}")
 
         if type(older_file_name) == list:
             for filename in older_file_name:
@@ -263,7 +262,7 @@ class SSTable:
         if sys.getsizeof(sorted_content) <= self.capacity_threshold:
             with open(f"{self.location}/{older_file_name}", "w") as f:
                 for i, v in sorted_content:
-                    f.write(f"{k} {val}\n")
+                    f.write(f"{i} {v}\n")
 
             return [older_file_name]
 

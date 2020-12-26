@@ -99,8 +99,49 @@ list_of_books = ["A Christmas Carol in Prose; Being a Ghost Story of Christmas b
     "Incidents in the Life of a Slave Girl, Written by Herself by Harriet A. Jacobs (157)",
     "Major Barbara by Bernard Shaw (156)"]
 
+
+import os
+from lsm_tree import LSM_tree
+
+
 def count_vowels(mystr):
     return sum(list(map(mystr.lower().count, "aeiou")))
 
 def count_as(mystr):
     return sum(list(map(mystr.lower().count, "a")))
+
+
+location = '/home/sarai/github-projects/lsm-trees/files/lsm_test'
+lsm_tree = LSM_tree(
+    name="home-pc",
+    default_path=location,
+    buffer_capacity=150,
+    merge_threshold=None
+)
+
+try:
+    for book in list_of_books[:10]:
+        lsm_tree.insert(book, count_vowels(book))
+
+    lsm_tree.show()
+
+    for book in list_of_books[:10]:
+        lsm_tree.insert(book, count_vowels(book))
+
+    lsm_tree.show()
+
+    # for book in list_of_books[:10]:
+    #     lsm_tree.insert(book, count_as(book))
+
+    # lsm_tree.show()
+
+    # for book in list_of_books[10:]:
+    #     lsm_tree.insert(book, count_vowels(book))
+
+    # lsm_tree.show()
+except Exception as e:
+    raise e
+finally:
+    # for i in os.listdir(location):
+    #     os.remove(location + "/" + i)
+    pass

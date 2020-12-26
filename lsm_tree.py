@@ -14,8 +14,10 @@ Simple proof of concept implementation, real implementation will be done in C
 """
 import os
 import sys
+import json
 import collections
 from datetime import datetime
+from pprint import pprint
 
 from ss_table import SSTable
 
@@ -54,7 +56,7 @@ class BufferL0:
         self.buffer_L0 = []
 
     def is_over_capacity(self):
-        return sys.getsizeof(self.memtable) > self.buffer_capacity
+        return sys.getsizeof(self.buffer_L0) > self.buffer_capacity
 
     def compact(self):
         deleted_keys = []
@@ -78,19 +80,38 @@ class DiskLevel(SSTable):
     def __init__(self, size_ratio, location, merge_threshold):
         self.name = f"level_L_{size_ratio}"
         self.location = location
-        self.capacity_threshold = 256
+        self.capacity_threshold = 512
         self.size_ratio = size_ratio
-        self.level_capacity = self.capacity_threshold * 2^size_ratio
-        self.runs = []
+        self.level_capacity = self.capacity_threshold * (2**size_ratio)
+        self.runs = None
         self.merge_threshold = merge_threshold
         self.sparse_index = {}
 
+        self._set_current_runs()
+
+    def get_current_size(self):
+        return sum(
+            [os.path.getsize(self.location + "/" + r + ".txt")
+            for r in self.runs]
+        )
+
     def is_over_capacity(self):
-        return sum([os.path.getsize(r) for r in self.runs]) > self.level_capacity
+        return self.get_current_size() > self.level_capacity
+
+    def _set_current_runs(self):
+        if len(os.listdir(self.location)) == 0:
+            self.runs = set()
+            return
+
+        self.runs = set(
+            [
+                f.replace(".txt", "") for f in os.listdir(self.location) if self.name in f
+            ]
+        )
 
     def write_to_disk(self, data):
         now = datetime.now()
-        time = now.strftime("%m-%d-%Y%H-%M-%S")
+        time = now.strftime("%m-%d-%Y%H-%M-%S.%f")
         ss_table_name = f"sstable_{self.name}_clock_{time}"
 
         print(f"Creating SSTable file named {ss_table_name}")
@@ -98,10 +119,10 @@ class DiskLevel(SSTable):
             for k, val in data:
                 f.write(f"{k} {val}\n")
 
-        self.runs.append(ss_table_name)
-
+        self._set_current_runs()
         if len(self.runs) >= 2:
             self.merge_files(filter_str=self.name)
+            self._set_current_runs()
 
         return ss_table_name
 
@@ -113,29 +134,53 @@ class LSM_tree:
         self.default_path = default_path
         self.buffer_L0 = BufferL0(buffer_capacity)
         self.disk_levels = [
-            DiskLevel(size_ratio + 1, default_path) for size_ratio in range(max_levels)
+            DiskLevel(size_ratio + 1, default_path, merge_threshold=merge_threshold)
+            for size_ratio in range(max_levels)
         ]
         self.max_levels = max_levels
 
-    def merge_levels(smaller_level, bigger_level):
+    def get_file_content(self, filename):
+        table_file = f"{self.default_path}/{filename}.txt"
+        with open(table_file, "r") as f:
+            content = f.read().split("\n")
+
+        result = []
+        for line in content:
+            if line:
+                k, _val = line.rsplit(" ", 1)
+                result.append((k, _val))
+        return result
+
+    def show(self):
+        print(self.name)
+        # pprint(self.buffer_L0.buffer_L0)
+        for disk in self.disk_levels:
+            print(f"===== {disk.name} =====")
+            print("Runs: ", disk.runs)
+            print("Current Size: ", disk.get_current_size())
+            print("Capacity: ", disk.level_capacity)
+        print("===== ===== ===== =====\n")
+
+    def merge_levels(self, smaller_level, bigger_level):
         content = []
         for filename in smaller_level.runs:
             content += self.get_file_content(filename)
 
-        compact_content = self.compact(content)
+        compact_content = SSTable.compact(content)
         sorted_content = [(k, compact_content[k]) for k in sorted(compact_content)]
         bigger_level.write_to_disk(sorted_content)
 
         for filename in smaller_level.runs:
-            os.remove(f"{self.default_path}/{filename}")
-        smaller_level.runs = []
+            os.remove(f"{self.default_path}/{filename}.txt")
+        smaller_level.runs = set()
 
     def insert(self, key, value):
         if not self.buffer_L0.is_over_capacity():
             self.buffer_L0.insert(key, value)
             return
 
-        result = self.buffer_L0.compact()
+        compact_memtable = self.buffer_L0.compact()
+        sorted_content = [(k, compact_memtable[k]) for k in sorted(compact_memtable)]
         i = 0
         merge_list = []
         while True:
@@ -146,14 +191,14 @@ class LSM_tree:
             merge_list.append(i)
             i += 1
 
-        disk_level.write_to_disk(result)
+        disk_level.write_to_disk(sorted_content)
         if merge_list:
             for i in merge_list[::-1]:
                 if i == self.max_levels - 1:
                     # Max level is not merged
                     continue
 
-                merge_levels(self.disk_levels[i], self.disk_levels[i + 1])
+                self.merge_levels(self.disk_levels[i], self.disk_levels[i + 1])
 
         # TODO get indexes for search
         self.buffer_L0.clear()

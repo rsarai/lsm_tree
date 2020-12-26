@@ -6,10 +6,15 @@
 - [x] Test merging files with updates on key, check if the most recent is kept.
 #### LSM Tree
 - [ ] Finish reading the [The Log-Structured Merge-Tree (LSM-Tree)](https://www.cs.umb.edu/~poneil/lsmtree.pdf) paper.
-- [ ] Build memory component
-- [ ] Build disk component
+- [x] Build memory component
+- [x] Build disk component
 - [ ] Build search
-- Ideas for recursive merge. All inputs are always saved on the level 1 not matter what, if the level 1 is over capacity trigger the recursive merge
+- [x] Build merge
+    - Ideas for recursive merge. All inputs are always saved on the level 1 not matter what, if the level 1 is over capacity trigger the recursive merge
+    - Image [here](images/lsm_tree.png)
+- [ ] Sorted merging is not working for multiple files in the same level. eg: level 3 has two files, the files are sorted inside themselfs but not related to each other
+- [ ] In some places I'm filtering for level files and in others I'm not, fix this.
+---------
 
 - Stands for Log-Structured Merge-Tree
 - It's a data structure suited for storages engines with the main focus on inserting and updating records. It's based on the principle of merging and compacting files
