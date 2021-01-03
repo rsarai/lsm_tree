@@ -77,14 +77,13 @@ class BufferL0:
 
 class DiskLevel(SSTable):
 
-    def __init__(self, size_ratio, location, merge_threshold):
+    def __init__(self, size_ratio, location):
         self.name = f"level_L_{size_ratio}"
         self.location = location
         self.capacity_threshold = 512
         self.size_ratio = size_ratio
         self.level_capacity = self.capacity_threshold * (2**size_ratio)
         self.runs = None
-        self.merge_threshold = merge_threshold
         self.sparse_index = {}
 
         self._set_current_runs()
@@ -114,7 +113,7 @@ class DiskLevel(SSTable):
         time = now.strftime("%m-%d-%Y%H-%M-%S.%f")
         ss_table_name = f"sstable_{self.name}_clock_{time}"
 
-        print(f"Creating SSTable file named {ss_table_name}")
+        # print(f"Creating SSTable file named {ss_table_name}")
         with open(f"{self.location}/{ss_table_name}.txt", "w") as f:
             for k, val in data:
                 f.write(f"{k} {val}\n")
@@ -126,15 +125,46 @@ class DiskLevel(SSTable):
 
         return ss_table_name
 
+    def update_sparse_indexes(self):
+        _new_sparse_index = []
+        for filename in os.listdir(self.location):
+            if not self.name in filename:
+                continue
+
+            content = self.get_file_content(filename)
+            key = content[0].rsplit(" ", 1)[0]
+            _new_sparse_index += [{"key": key, "file": filename}]
+
+        self.sparse_index = sorted(_new_sparse_index, key=lambda k: k["key"])
+
+    def get(self, key):
+        val = None
+        last_file = None
+        for item_dict in self.sparse_index:
+            index_key = item_dict["key"]
+            _file = item_dict["file"]
+            if key < index_key:
+                break
+            last_file = _file
+
+        if last_file:
+            with open(f"{self.location}/{last_file}", "r") as f:
+                for line in f.readlines():
+                    k, _val = line.rsplit(" ", 1)
+                    if k == key:
+                        val = _val
+        return val
+
+
 
 class LSM_tree:
-    def __init__(self, name, buffer_capacity, merge_threshold, max_levels=5,
+    def __init__(self, name, buffer_capacity, max_levels=5,
                  default_path="/home/sarai/github-projects/lsm-trees/files/"):
         self.name = name
         self.default_path = default_path
         self.buffer_L0 = BufferL0(buffer_capacity)
         self.disk_levels = [
-            DiskLevel(size_ratio + 1, default_path, merge_threshold=merge_threshold)
+            DiskLevel(size_ratio + 1, default_path)
             for size_ratio in range(max_levels)
         ]
         self.max_levels = max_levels
@@ -152,8 +182,9 @@ class LSM_tree:
         return result
 
     def show(self):
+        print("\n\n")
         print(self.name)
-        # pprint(self.buffer_L0.buffer_L0)
+        print(self.buffer_L0.buffer_L0)
         for disk in self.disk_levels:
             print(f"===== {disk.name} =====")
             print("Runs: ", disk.runs)
@@ -173,6 +204,8 @@ class LSM_tree:
         for filename in smaller_level.runs:
             os.remove(f"{self.default_path}/{filename}.txt")
         smaller_level.runs = set()
+        smaller_level.update_sparse_indexes()
+        bigger_level.update_sparse_indexes()
 
     def insert(self, key, value):
         if not self.buffer_L0.is_over_capacity():
@@ -214,3 +247,17 @@ class LSM_tree:
 
     def clear_buffer(self):
         self.buffer_L0.clear()
+
+    def search(self, key):
+        res = None
+
+        res = self.get(key)
+        if res != TOMBSTONE_OPERATOR and res is not None:
+            return res
+
+        for d_level in self.disk_levels:
+            res = d_level.get(key)
+            if res:
+                return res
+
+        return res

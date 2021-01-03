@@ -8,12 +8,17 @@
 - [ ] Finish reading the [The Log-Structured Merge-Tree (LSM-Tree)](https://www.cs.umb.edu/~poneil/lsmtree.pdf) paper.
 - [x] Build memory component
 - [x] Build disk component
-- [ ] Build search
+- [x] Build search
+    - simulating fence pointers
 - [x] Build merge
     - Ideas for recursive merge. All inputs are always saved on the level 1 not matter what, if the level 1 is over capacity trigger the recursive merge
-    - Image [here](images/lsm_tree.png)
-- [ ] Sorted merging is not working for multiple files in the same level. eg: level 3 has two files, the files are sorted inside themselfs but not related to each other
+    - [here](images/lsm_tree.png)
+- [x] Sorted merging is not working for multiple files in the same level. eg: level 3 has two files, the files are sorted inside themselfs but not related to each other
 - [ ] In some places I'm filtering for level files and in others I'm not, fix this.
+- [ ] Understand better merge policies (leveling, tiering, lazy leveling)
+- [ ] Implement both ways of merging strategies and add as a parameter on LSM class
+- [ ] Implement bloom filter to optimize search
+- [ ] Refactor to assure consistency across background merges
 ---------
 
 - Stands for Log-Structured Merge-Tree
@@ -67,6 +72,7 @@
 - Inserts are added to an in-memory buffer (memtable)
 - When the memtable fills the sorted data is flushed to a new file on disk. This process repeats as more and more writes come in.
 - Periodically the system performs a compaction. Compaction selects multiple files and merges them together, removing any duplicated updates or deletions
+- [Image](images/lsm_tree.png)
 
 -------
 

@@ -41,7 +41,7 @@ class SSTable:
         ss_table_name = f"sstable_{total_files + 1}"
         first_key = None
 
-        print(f"Creating SSTable file named {ss_table_name}")
+        # print(f"Creating SSTable file named {ss_table_name}")
         with open(f"{self.location}/{ss_table_name}.txt", "w") as f:
             i = 0
             for k, val in sorted_memtable:
@@ -63,8 +63,6 @@ class SSTable:
         if val is not None:
             return val
 
-        high_file = None
-        lower_file = None
         for index_key, _file in self.sparse_index.items():
             if key < index_key:
                 break
@@ -94,8 +92,10 @@ class SSTable:
     def merge_files(self, filter_str=None):
         if filter_str:
             list_of_files = [f for f in os.listdir(self.location) if filter_str in f]
+            list_of_files = sorted(list_of_files)
         else:
-            list_of_files = os.listdir(self.location)
+            list_of_files = sorted(os.listdir(self.location))
+
         self.merge_sort_files(list_of_files)
         self.update_sparse_indexes()
 
@@ -155,7 +155,7 @@ class SSTable:
         return new_file_content
 
     def update_sparse_indexes(self):
-        print("Updating sparse index... ")
+        # print("Updating sparse index... ")
         self.sparse_index = {}
         for filename in os.listdir(self.location):
             content = self.get_file_content(filename)
@@ -216,7 +216,7 @@ class SSTable:
 
         # print(f"Len older_content {len(older_content)}")
         # print(f"Len newer_content {len(newer_content)}")
-        print(f"Merging {older_file_name} and {newer_file_name}")
+        # print(f"Merging {older_file_name} and {newer_file_name}")
         sorted_content = self._merge_two_files(older_content, newer_content)
         # print(f"Len sorted files {len(sorted_content)}")
 
@@ -253,7 +253,7 @@ class SSTable:
         older_content = list(filter(None, self.get_file_content(older_file_name)))
         newer_content = list(filter(None, self.get_file_content(newer_file_name)))
 
-        print(f"Merging {older_file_name} and {newer_file_name}")
+        # print(f"Merging {older_file_name} and {newer_file_name}")
         sorted_content = self._merge_two_files(older_content, newer_content)
 
         os.remove(f"{self.location}/{older_file_name}")
