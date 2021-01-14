@@ -13,9 +13,9 @@
     - Ideas for recursive merge. All inputs are always saved on the level 1 not matter what, if the level 1 is over capacity trigger the recursive merge
     - [here](images/lsm_tree.png)
 - [x] Sorted merging is not working for multiple files in the same level. eg: level 3 has two files, the files are sorted inside themselfs but not related to each other
-- [ ] Finish reading the [The Log-Structured Merge-Tree (LSM-Tree)](https://www.cs.umb.edu/~poneil/lsmtree.pdf) paper.
+- [x] Finish reading the [The Log-Structured Merge-Tree (LSM-Tree)](https://www.cs.umb.edu/~poneil/lsmtree.pdf) paper.
 - [ ] In some places I'm filtering for level files and in others I'm not, fix this.
-- [ ] Understand better merge policies (leveling, tiering, lazy leveling)
+- [x] Understand better merge policies (leveling, tiering, lazy leveling)
 - [ ] Implement both ways of merging strategies and add as a parameter on LSM class
 - [ ] Implement bloom filter to optimize search
 - [ ] Refactor to assure consistency across background merges
