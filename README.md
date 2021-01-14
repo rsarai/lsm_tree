@@ -5,7 +5,6 @@
 - [x] Don't merge files into single file. Do merge sort to merge its content and leave the files ordered.
 - [x] Test merging files with updates on key, check if the most recent is kept.
 #### LSM Tree
-- [ ] Finish reading the [The Log-Structured Merge-Tree (LSM-Tree)](https://www.cs.umb.edu/~poneil/lsmtree.pdf) paper.
 - [x] Build memory component
 - [x] Build disk component
 - [x] Build search
@@ -14,6 +13,7 @@
     - Ideas for recursive merge. All inputs are always saved on the level 1 not matter what, if the level 1 is over capacity trigger the recursive merge
     - [here](images/lsm_tree.png)
 - [x] Sorted merging is not working for multiple files in the same level. eg: level 3 has two files, the files are sorted inside themselfs but not related to each other
+- [ ] Finish reading the [The Log-Structured Merge-Tree (LSM-Tree)](https://www.cs.umb.edu/~poneil/lsmtree.pdf) paper.
 - [ ] In some places I'm filtering for level files and in others I'm not, fix this.
 - [ ] Understand better merge policies (leveling, tiering, lazy leveling)
 - [ ] Implement both ways of merging strategies and add as a parameter on LSM class
@@ -21,37 +21,40 @@
 - [ ] Refactor to assure consistency across background merges
 ---------
 
-- Stands for Log-Structured Merge-Tree
+- LSM stands for Log-Structured Merge-Tree
 - It's a data structure suited for storages engines with the main focus on inserting and updating records. It's based on the principle of merging and compacting files
 - The basic idea of LSM-tree is to keep a cascade of SSTables that are merged in the background.
+
+## Implementation trade-offs
+- Each implementation balances the cost of I/O updates and the cost of I/O reads. Due to the level structure of the LSM one needs to perform merging operations in order to remove duplicates and ease reads, when to do the merge is the critical point. In one approach, you can have frequent merges that allow you ease search but delay updates and writes, on the other side you may delay merges until they are stricly necessary having fast writes and updates, but slow recover and higher space cost.
 
 ## Components
 - memtable -> AVL tree and stores key-values pairs sorted by key (called buffer or L0)
 - segments -> very large file stored in disk comprises of many immutable log segments accompanied by indexes like hash indexes for quick key look ups. Implemented using SSTables
     - Has a comparable directory structure to a B-tree, but is optimized for sequential disk access, with nodes 100% full, and sequences of single-page nodes on each level below the root packed together in contiguous multi-page disk blocks for efficient arm use
 
-## Levels
-- Capacity threshold
-- Merge threshold for maximum number of runs allowed at that level, defines the merge policy (leveling or tiering)
-
-## Parameters
+## Implementation
+#### Parameters
 - Number of levels
 - Size ratio between levels
 - Merging strategy
 
-## Requirements
+#### Requirements
 - High update rate (100k - 1M updates per second for flash storage and 1k- 10k of updates per second for HDD storage)
 - Efficient reads (1K - 5K reads per second for flash storage and 20-100 reads per second for HDD storage
 - Every level can follow either of the following merge policies - leveling, tiering, or lazy leveling.
 - Each level includes bloom filter(s) with optimized bits per entry to determine if a key is not contained in the level.
 - Each level includes fence pointers to allow page or block access within a run
+    - Fence pointers contain the first key of every block on the run, this is key avoid scanning all blocks when searching for a key.
 
-## Writes
+
+## Base Logic
+#### Writes
 - Updates and inserts are treated in the same way
 - Deletes are also performed in the same way as updates (first added to buffer), but with a special marker, which denotes this record as "deleted".
 - When the memtable fills the sorted data is flushed to a new file on disk. This process repeats as more and more writes come in.
 
-## Merging
+#### Merging
 - The merge process takes as input a set of sorted files and creates as output a new set of sorted files non-overlapping in key range, called a run
 - The current level has reached its threshold size, therefore its contents needs to be pushed to larger levels as part of the merge process to clear more space at the current level.
 - A new run is being moved into the current level which has already reached its allowed threshold of runs, and therefore any run being merged into the current level cannot simply be added, rather it must be merged with a run that is already at the current level in order to abide under the threshold. In this fashion, it is possible for a merge to cause a cascade of further merges through the larger levels that follow.
@@ -60,15 +63,29 @@
     - "When the growing C0 tree first reaches its threshold size, a leftmost sequence of entries is deleted from the C0 tree (this should be done in an efficient batch manner rather than one entry at a time) and reorganized into a C1 tree leaf node packed 100% full."
     - Successive multi-page blocks of the C1 tree leaf level in ever increasing key-sequence order are written out to disk to keep the C0 tree threshold size from exceeding its threshold.
 
-## Reads
+##### Tiering
+- Write-optimized
+- With tiering, we merge runs within a level only when the level reaches capacity. So runs will acumulate unmerged until they reach the level capacity.
+- Search in tiering would search first on the buffer, than in each one of runs inside level 1, if nothing is found repeat the same procedure with the following levels
+
+##### Leveling
+- Read-optimized
+- Runs are merged as soon as they get, this results in only a single file per level.
+- Search in leveling would search first on the buffer, than in single file inside the level 1, if nothing is found repeat the same procedure with the following levels
+
+![](/images/leveling_and_tiering.png)
+
+This two approaches are controlled by the size ratio between the levels. When the size ratio is 1 the tiering methodology works it's exactly the leveling approach.
+
+#### Reads
 - Reads happen first at L0 and are propagate to the levels
 - To avoid doing a binary search on every single run during query answering, various optimizations can be performed by maintaining auxiliary structures. Common ones are: fence pointers and Bloom filters.
 
-## Consistency and Level Management.
+#### Consistency and Level Management.
 - While files have correspondence with the underlying file system, levels are conceptual and must be managed by the LSM-tree implementation. To maintain a consistent view of the immutable files, it is typical to maintain globally a catalog and manifest structure (in-memory and persisted) which describes the file to level relationships and indicate which set of files form a current snapshot.
 - That way, background merges that create new files can continue progress while ongoing readers are guaranteed to see a consistent view of the set of files corresponding to a single snapshot of the LSM-tree without disruption to query correctness.
 
-## Happy Path
+#### Happy Path
 - Inserts are added to an in-memory buffer (memtable)
 - When the memtable fills the sorted data is flushed to a new file on disk. This process repeats as more and more writes come in.
 - Periodically the system performs a compaction. Compaction selects multiple files and merges them together, removing any duplicated updates or deletions
@@ -133,3 +150,4 @@
 - https://www.youtube.com/watch?v=b6SI8VbcT4w
 - https://yetanotherdevblog.com/lsm/
 - http://www.benstopford.com/2015/02/14/log-structured-merge-trees/
+- https://scholar.harvard.edu/files/stratos/files/dostoevskykv.pdf
