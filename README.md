@@ -73,9 +73,13 @@
 - Runs are merged as soon as they get, this results in only a single file per level.
 - Search in leveling would search first on the buffer, than in single file inside the level 1, if nothing is found repeat the same procedure with the following levels
 
+#### Lazy Leveling
+- Lies on a sweet spot providing faster updates and lookups. It works by optmizing writes, the idea is that the cost of writing and them merging is equal to all levels (usually the amount of writes you need to make before merge is the same for all merges). This means even though the heaviest load in on the higher level you are still spending the same effort in all levels by merging all the them the same amount of times. Since the smaller levels are exponentially smaller that the highest (:]) they become superfulous since they demand less work.
+- Lazy Leveling performs a double merging strategy, the smallers levels use the tiering approach, while the highest level uses the leveling merge approach.
+
 ![](/images/leveling_and_tiering.png)
 
-This two approaches are controlled by the size ratio between the levels. When the size ratio is 1 the tiering methodology works it's exactly the leveling approach.
+These two approaches are controlled by the size ratio between the levels. When the size ratio is 1 the tiering methodology works it's exactly the leveling approach.
 
 #### Reads
 - Reads happen first at L0 and are propagate to the levels
@@ -90,6 +94,14 @@ This two approaches are controlled by the size ratio between the levels. When th
 - When the memtable fills the sorted data is flushed to a new file on disk. This process repeats as more and more writes come in.
 - Periodically the system performs a compaction. Compaction selects multiple files and merges them together, removing any duplicated updates or deletions
 - [Image](images/lsm_tree.png)
+
+## Optimizations
+
+#### Monkey
+- This is mostly a read optimization it relies on using Bloom filter to speed up searches. The key thing is that the rate of false-positives produced my the bloom filters may be decrease for smaller levels (since the bigger cost will be on searching in higher levels), by realocating the filters to lower levels it is possible to keep the same memory usage with fewer false-positives (faster reads).
+
+#### Dostoevsky
+- Automatic way to tweak the size ratio and the amount of the types of merging strategies.
 
 -------
 
